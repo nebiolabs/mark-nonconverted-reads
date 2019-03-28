@@ -17,9 +17,6 @@ import argparse
 import pysam
 import re
 
-sys.path.insert(0, "/mnt/home/mcampbell/src/helpful_scripts")
-import helpful_scripts
-
 def argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--reference", required = True, help = "Reference fasta file")
@@ -29,6 +26,36 @@ def argparser():
     args = parser.parse_args()
     return args
 
+
+def parse_fasta(reference):
+	"""
+	Parses the reference fasta file, and reads it into a dictionary. For the header, will
+	strip anything after the first space. For example:
+	
+	>chr1 AC:XXX gi:XXX LN:XXX
+	
+	will be saved to the dictionary as:
+	chr1
+	"""
+
+	fasta_dict = {}
+	fasta = open(reference, "r")
+	for line in fasta:
+
+		if line.startswith(">"): # Header line
+			header = line.strip().split(" ")[0][1:] # Remove '>' and anything after ' '
+			fasta_dict[header] = []
+
+		else: # Sequence line
+			fasta_dict[header].append(line.strip())
+	fasta.close()	
+
+	# If it's a multiline fasta, join the individual lines to one sequence
+	for header in fasta_dict:
+		fasta_dict[header] = "".join(fasta_dict[header])
+
+	return fasta_dict
+	
 
 def parse_bam(bam_file, fasta_dict):
     """
@@ -158,7 +185,7 @@ def softclip(coord_list):
 if __name__ == "__main__":
     args = argparser()
 
-    fasta_dict = helpful_scripts.parse_fasta(args.reference)
+    fasta_dict = parse_fasta(args.reference)
 
     if args.bam:
         if args.bam.endswith(".bam"):
