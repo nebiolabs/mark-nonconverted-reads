@@ -28,33 +28,33 @@ def argparser():
 
 
 def parse_fasta(reference):
-	"""
-	Parses the reference fasta file, and reads it into a dictionary. For the header, will
-	strip anything after the first space. For example:
-	
-	>chr1 AC:XXX gi:XXX LN:XXX
-	
-	will be saved to the dictionary as:
-	chr1
-	"""
+    """
+    Parses the reference fasta file, and reads it into a dictionary. For the header, will
+    strip anything after the first space. For example:
+    
+    >chr1 AC:XXX gi:XXX LN:XXX
+    
+    will be saved to the dictionary as:
+    chr1
+    """
 
-	fasta_dict = {}
-	fasta = open(reference, "r")
-	for line in fasta:
+    fasta_dict = {}
+    fasta = open(reference, "r")
+    for line in fasta:
 
-		if line.startswith(">"): # Header line
-			header = line.strip().split(" ")[0][1:] # Remove '>' and anything after ' '
-			fasta_dict[header] = []
+        if line.startswith(">"): # Header line
+            header = line.strip().split(" ")[0][1:] # Remove '>' and anything after ' '
+            fasta_dict[header] = []
 
-		else: # Sequence line
-			fasta_dict[header].append(line.strip())
-	fasta.close()	
+        else: # Sequence line
+            fasta_dict[header].append(line.strip())
+    fasta.close()    
 
-	# If it's a multiline fasta, join the individual lines to one sequence
-	for header in fasta_dict:
-		fasta_dict[header] = "".join(fasta_dict[header])
+    # If it's a multiline fasta, join the individual lines to one sequence
+    for header in fasta_dict:
+        fasta_dict[header] = "".join(fasta_dict[header])
 
-	return fasta_dict
+    return fasta_dict
 	
 
 def parse_bam(bam_file, fasta_dict):
@@ -195,13 +195,15 @@ if __name__ == "__main__":
     else:
         mysam = pysam.AlignmentFile("-", "r")
 
-    if args.out:
-        out = pysam.AlignmentFile(args.out, "wb", template = mysam)
-    else:
-        out = pysam.AlignmentFile("-", "wb", template = mysam)
+    # Capture the input header, and add a placeholder for the nonconverted read count  
+    new_header = mysam.header.to_dict()
+    new_header['PG'].append({"ID": "mark-nonconverted-reads", "DS": "XXXXXXXXXXX"})
 
-    header = mysam.header.to_dict()
+    if args.out:
+        out = pysam.AlignmentFile(args.out, "wb", header = new_header)
+    else:
+        out = pysam.AlignmentFile("-", "wb", header = new_header)
+
 
     unconverted = parse_bam(mysam, fasta_dict)
 
-    header['PG'].append({"ID": "Find unconversions", "DS": unconverted})
