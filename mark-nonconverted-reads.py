@@ -82,7 +82,11 @@ def parse_bam(bam_file, fasta_dict):
     unconverted Cs, or some snp / misalignment
     """
 
-    unconverted_count = 0
+    # Populate a dictionary to hold nonconverted read counts with 0s
+    nonconverted_dict = {}
+    for chrom in fasta_dict:
+        nonconverted_dict[chrom] = 0
+        
     for read in bam_file:
     
         # Ignore reads not part of a proper pair
@@ -93,20 +97,20 @@ def parse_bam(bam_file, fasta_dict):
         elif (read.is_reverse and read.is_read2) or (read.mate_is_reverse and read.is_read1): # 'Top' strand
             # If there are 3 or more non-CpG Cs in the read, call filter_snps
             if read.query_alignment_sequence.count("C") - read.query_alignment_sequence.count("CG") >= 3:
-                unconverted_count += filter_snps(read, fasta_dict)
+                nonconverted_dict[read.reference_name] += filter_snps(read, fasta_dict[read.reference_name])
             else:
                 out.write(read)
         
         elif (read.is_reverse and read.is_read1) or (read.mate_is_reverse and read.is_read2): # 'Bottom' strand
             # If there are 3 or more non-CpG Gs in the read, call filter_snps
             if read.query_alignment_sequence.count("G") - read.query_alignment_sequence.count("CG") >= 3:
-                unconverted_count += filter_snps(read, fasta_dict)
+                nonconverted_dict[read.reference_name] += filter_snps(read, fasta_dict[read.reference_name])
             else:
                 out.write(read)
 
-    return unconverted_count
+    return nonconverted_dict
 
-def filter_snps(read, fasta_dict):
+def filter_snps(read, sequence):
     """
     For reads with 3 or more unconverted Cs, check to be sure they actually align to a C
     on the reference genome (so are not mutations, snps, misalignments, etc.)
@@ -114,7 +118,7 @@ def filter_snps(read, fasta_dict):
 
     # For all bases in read, gets genomic coordinate of alignment
     coords = read.get_reference_positions(full_length = True)
-    chrom = read.reference_name
+    my_seq = sequence
 
     # If the alignment was softclipped at all, call softclip() to remove those indices
     # from the coords list
@@ -133,14 +137,14 @@ def filter_snps(read, fasta_dict):
                    read.query_sequence[coords.index(coord) + 1] != "G":
                     
                     # If the C maps to a C on the genome (it's unconverted)
-                    if fasta_dict[chrom][coord] == "C":
+                    if my_seq[coord] == "C":
                         my_unconverted += 1
                
                 # If the C is the last base of the read
                 elif coords.index(coord) == len(read.query_sequence) - 1:
                     
                     # If the C maps to a C on the genome (it's unconverted)
-                    if fasta_dict[chrom][coord] == "C":
+                    if my_seq[coord] == "C":
                         my_unconverted += 1
 
     elif (read.is_reverse and read.is_read1) or (read.mate_is_reverse and read.is_read2): # 'Bottom' strand
@@ -153,14 +157,14 @@ def filter_snps(read, fasta_dict):
                 if coords.index(coord) > 0 and read.query_sequence[coords.index(coord) - 1] != "C":
                     
                     # If the G maps to a G on the genome (it's unconverted)
-                    if fasta_dict[chrom][coord] == "G":
+                    if my_seq[coord] == "G":
                         my_unconverted += 1
                 
                 # If the G is the first base of the read
                 elif coords.index(coord) == 0:
                     
                     # If the G maps to a G on the genome (it's unconverted)
-                    if fasta_dict[chrom][coord] == "G":
+                    if my_seq[coord] == "G":
                         my_unconverted += 1
 
     # If there are 3 or more unconverted Cs on the read, set some flags and return
@@ -203,6 +207,7 @@ def softclip(coord_list):
 if __name__ == "__main__":
     args = argparser()
     
+    # If a sam/bam file is specified, use it, otherwise use stdin
     if args.bam:
         if args.bam.endswith(".bam"):
             mysam = pysam.AlignmentFile(args.bam, "rb")
@@ -211,6 +216,7 @@ if __name__ == "__main__":
     else:
         mysam = pysam.AlignmentFile("-", "r")
 
+    # If a reference fasta is specified, use it, otherwise look in the bam header
     if args.reference:
         reference = args.reference
     else:
@@ -222,11 +228,19 @@ if __name__ == "__main__":
     new_header = mysam.header.to_dict()
     new_header['PG'].append({"ID": "mark-nonconverted-reads", "DS": "XXXXXXXXXXX"})
 
+    # If an output bam is specified, write there, otherwise write to stdout
     if args.out:
         out = pysam.AlignmentFile(args.out, "wb", header = new_header)
     else:
         out = pysam.AlignmentFile("-", "wb", header = new_header)
 
 
-    unconverted = parse_bam(mysam, fasta_dict)
+    nonconverted_counts = parse_bam(mysam, fasta_dict)
 
+    # Write each chromosome in the reference and corresponding number of nonconverted reads
+    # to stderr
+    for chrom in mysam.references:
+        if chrom in nonconverted_counts:
+            sys.stderr.write("{}\t{}\n".format(chrom, nonconverted_counts[chrom]))
+        else:
+            sys.stderr.write("{}\t{}\n".format(chrom, 0))
