@@ -19,7 +19,7 @@ import re
 
 def argparser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--reference", required = True, help = "Reference fasta file")
+    parser.add_argument("--reference", required = False, help = "Reference fasta file")
     parser.add_argument("--bam", required = False, help = "Bam or sam file (must end in .bam or .sam)")
     parser.add_argument("--out", required = False, help = "Name for output bam file")
 
@@ -56,6 +56,24 @@ def parse_fasta(reference):
 
     return fasta_dict
 	
+def find_reference(header):
+    """
+    If a reference fasta isn't provided by the user, looks for the reference in the @PG
+    lines of the bam header
+    """ 
+     
+    for command in header['PG']:
+        # Assuming bwa-meth was used for aligning
+        if command['ID'] == "bwa-meth":
+            assert "--reference " in command['CL'], "Couldn't find the reference fasta in "\
+                    "the bam header, please provide one with the --reference option"
+            
+            # A regex might be better, but this will suffice for the time being
+            start = command['CL'].rindex("--reference ") + len("--reference ")
+            tmp = command['CL'][start:]
+            end = tmp.index(" ")
+            ref = tmp[:end]
+            return ref   
 
 def parse_bam(bam_file, fasta_dict):
     """
@@ -184,9 +202,7 @@ def softclip(coord_list):
 
 if __name__ == "__main__":
     args = argparser()
-
-    fasta_dict = parse_fasta(args.reference)
-
+    
     if args.bam:
         if args.bam.endswith(".bam"):
             mysam = pysam.AlignmentFile(args.bam, "rb")
@@ -194,6 +210,13 @@ if __name__ == "__main__":
             mysam = pysam.AlignmentFile(args.bam, "r")
     else:
         mysam = pysam.AlignmentFile("-", "r")
+
+    if args.reference:
+        reference = args.reference
+    else:
+        reference = find_reference(mysam.header.to_dict())
+            
+    fasta_dict = parse_fasta(reference)
 
     # Capture the input header, and add a placeholder for the nonconverted read count  
     new_header = mysam.header.to_dict()
