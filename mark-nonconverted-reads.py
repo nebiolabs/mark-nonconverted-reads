@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to take a Sam/Bam file (streamed though stdin, by default) of a bisulfite-treated
+Script to take a Sam/Bam file (streamed though stdin, by default) of a bisulfite or EM-seq treated
 library, and filter out 'unconverted' reads if they have 3 or more unconverted Cs in a
 non-CpG context.
 
