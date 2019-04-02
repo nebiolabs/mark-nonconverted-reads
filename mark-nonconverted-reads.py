@@ -20,8 +20,10 @@ import re
 def argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--reference", required = False, help = "Reference fasta file")
-    parser.add_argument("--bam", required = False, help = "Bam or sam file (must end in .bam or .sam)")
-    parser.add_argument("--out", required = False, help = "Name for output bam file")
+    parser.add_argument("--bam", required = False, help = "Input bam or sam file (must end in .bam or .sam) [default = stdin]")
+    parser.add_argument("--out", required = False, help = "Name for output bam file [default = stdout]")
+    parser.add_argument("--c_count", required = False, help = "Minimum number of nonconverted Cs on a read"\
+                                                               " to consider it nonconverted [default = 3]")
 
     args = parser.parse_args()
     return args
@@ -75,7 +77,7 @@ def find_reference(header):
             ref = tmp[:end]
             return ref   
 
-def parse_bam(bam_file, fasta_dict):
+def parse_bam(bam_file, fasta_dict, c_count):
     """
     Reads through each alignment in the bam file, if it's part of a proper pair then checks
     for non-CpG Cs. If there are 3 or more, calls filter_snps() to check if they are
@@ -96,21 +98,21 @@ def parse_bam(bam_file, fasta_dict):
         
         elif (read.is_reverse and read.is_read2) or (read.mate_is_reverse and read.is_read1): # 'Top' strand
             # If there are 3 or more non-CpG Cs in the read, call filter_snps
-            if read.query_alignment_sequence.count("C") - read.query_alignment_sequence.count("CG") >= 3:
-                nonconverted_dict[read.reference_name] += filter_snps(read, fasta_dict[read.reference_name])
+            if read.query_alignment_sequence.count("C") - read.query_alignment_sequence.count("CG") >= c_count:
+                nonconverted_dict[read.reference_name] += filter_snps(read, fasta_dict[read.reference_name], c_count)
             else:
                 out.write(read)
         
         elif (read.is_reverse and read.is_read1) or (read.mate_is_reverse and read.is_read2): # 'Bottom' strand
             # If there are 3 or more non-CpG Gs in the read, call filter_snps
-            if read.query_alignment_sequence.count("G") - read.query_alignment_sequence.count("CG") >= 3:
-                nonconverted_dict[read.reference_name] += filter_snps(read, fasta_dict[read.reference_name])
+            if read.query_alignment_sequence.count("G") - read.query_alignment_sequence.count("CG") >= c_count:
+                nonconverted_dict[read.reference_name] += filter_snps(read, fasta_dict[read.reference_name], c_count)
             else:
                 out.write(read)
 
     return nonconverted_dict
 
-def filter_snps(read, sequence):
+def filter_snps(read, sequence, c_count):
     """
     For reads with 3 or more unconverted Cs, check to be sure they actually align to a C
     on the reference genome (so are not mutations, snps, misalignments, etc.)
@@ -167,8 +169,8 @@ def filter_snps(read, sequence):
                     if my_seq[coord] == "G":
                         my_unconverted += 1
 
-    # If there are 3 or more unconverted Cs on the read, set some flags and return
-    if my_unconverted >= 3:
+    # If there are c_count or more unconverted Cs on the read, set some flags and return
+    if my_unconverted >= c_count:
         read.set_tags(read.get_tags() + [("XX", "UC")])
         read.flag += 512
         out.write(read)
@@ -235,7 +237,11 @@ if __name__ == "__main__":
         out = pysam.AlignmentFile("-", "wb", header = new_header)
 
 
-    nonconverted_counts = parse_bam(mysam, fasta_dict)
+    c_count = 3
+    if args.c_count:
+        c_count = int(args.c_count)
+        
+    nonconverted_counts = parse_bam(mysam, fasta_dict, c_count)
 
     # Write each chromosome in the reference and corresponding number of nonconverted reads
     # to stderr
