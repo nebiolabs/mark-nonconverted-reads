@@ -216,6 +216,10 @@ if __name__ == "__main__":
         elif args.bam.endswith(".sam"):
             mysam = pysam.AlignmentFile(args.bam, "r")
     else:
+        # sys.stdin.isatty() checks that there is some data coming in through stdin
+        assert sys.stdin.isatty() is False, "You didn't pipe me any data or specify an input "\
+                                            "file! Use 'mark-nonconverted-reads.py -h' for more "\
+                                            "usage information."
         mysam = pysam.AlignmentFile("-", "r")
 
     # If a reference fasta is specified, use it, otherwise look in the bam header
