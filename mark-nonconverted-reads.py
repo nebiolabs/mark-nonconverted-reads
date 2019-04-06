@@ -24,6 +24,8 @@ def argparser():
     parser.add_argument("--out", required = False, help = "Name for output bam file [default = stdout]")
     parser.add_argument("--c_count", required = False, help = "Minimum number of nonconverted Cs on a read"\
                                                                " to consider it nonconverted [default = 3]")
+    parser.add_argument("--flag_reads", required = False,  action="store_true", \
+                        help = "Set the 'Failing platform / vendor quality check flag")
 
     args = parser.parse_args()
     return args
@@ -77,7 +79,7 @@ def find_reference(header):
             ref = tmp[:end]
             return ref   
 
-def parse_bam(bam_file, fasta_dict, c_count):
+def parse_bam(bam_file, fasta_dict, c_count, flag_reads):
     """
     Reads through each alignment in the bam file, if it's part of a proper pair then checks
     for non-CpG Cs. If there are 3 or more, calls filter_snps() to check if they are
@@ -99,20 +101,20 @@ def parse_bam(bam_file, fasta_dict, c_count):
         elif (read.is_reverse and read.is_read2) or (read.mate_is_reverse and read.is_read1): # 'Top' strand
             # If there are 3 or more non-CpG Cs in the read, call filter_snps
             if read.query_alignment_sequence.count("C") - read.query_alignment_sequence.count("CG") >= c_count:
-                nonconverted_dict[read.reference_name] += filter_snps(read, fasta_dict[read.reference_name], c_count)
+                nonconverted_dict[read.reference_name] += filter_snps(read, fasta_dict[read.reference_name], c_count, flag_reads)
             else:
                 out.write(read)
         
         elif (read.is_reverse and read.is_read1) or (read.mate_is_reverse and read.is_read2): # 'Bottom' strand
             # If there are 3 or more non-CpG Gs in the read, call filter_snps
             if read.query_alignment_sequence.count("G") - read.query_alignment_sequence.count("CG") >= c_count:
-                nonconverted_dict[read.reference_name] += filter_snps(read, fasta_dict[read.reference_name], c_count)
+                nonconverted_dict[read.reference_name] += filter_snps(read, fasta_dict[read.reference_name], c_count, flag_reads)
             else:
                 out.write(read)
 
     return nonconverted_dict
 
-def filter_snps(read, sequence, c_count):
+def filter_snps(read, sequence, c_count, flag_reads):
     """
     For reads with 3 or more unconverted Cs, check to be sure they actually align to a C
     on the reference genome (so are not mutations, snps, misalignments, etc.)
@@ -172,7 +174,8 @@ def filter_snps(read, sequence, c_count):
     # If there are c_count or more unconverted Cs on the read, set some flags and return
     if my_unconverted >= c_count:
         read.set_tags(read.get_tags() + [("XX", "UC")])
-        read.flag += 512
+        if flag_reads is True:
+            read.flag += 512
         out.write(read)
         return 1
 
@@ -244,8 +247,13 @@ if __name__ == "__main__":
     c_count = 3
     if args.c_count:
         c_count = int(args.c_count)
-        
-    nonconverted_counts = parse_bam(mysam, fasta_dict, c_count)
+    
+    if args.flag_reads:
+    	flag_reads = True
+    else:
+    	flag_reads = False
+    
+    nonconverted_counts = parse_bam(mysam, fasta_dict, c_count, flag_reads)
 
     # Write each chromosome in the reference and corresponding number of nonconverted reads
     # to stderr
