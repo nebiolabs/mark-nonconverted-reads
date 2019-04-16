@@ -21,7 +21,7 @@ def argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--reference", required = False, help = "Reference fasta file")
     parser.add_argument("--bam", required = False, help = "Input bam or sam file (must end in .bam or .sam) [default = stdin]")
-    parser.add_argument("--out", required = False, help = "Name for output bam file [default = stdout]")
+    parser.add_argument("--out", required = False, help = "Name for output sam file [default = stdout]")
     parser.add_argument("--c_count", required = False, default = 3, type = int, help = "Minimum number of nonconverted Cs on a read"\
                                                                " to consider it nonconverted [default = 3]")
     parser.add_argument("--flag_reads", required = False, default = False, action="store_true", \
@@ -231,15 +231,11 @@ def run_filter():
             
     fasta_dict = parse_fasta(reference)
 
-    # Capture the input header, and add a placeholder for the nonconverted read count  
-    new_header = mysam.header.to_dict()
-    new_header['PG'].append({"ID": "mark-nonconverted-reads", "DS": "XXXXXXXXXXX"})
-
     # If an output bam is specified, write there, otherwise write to stdout
     if args.out:
-        out = pysam.AlignmentFile(args.out, "wb", header = new_header)
+        out = pysam.AlignmentFile(args.out, "w", template = mysam)
     else:
-        out = pysam.AlignmentFile("-", "wb", header = new_header)
+        out = pysam.AlignmentFile("-", "w", template = mysam)
     
     nonconverted_counts = parse_bam(mysam, fasta_dict, out, args)
 
