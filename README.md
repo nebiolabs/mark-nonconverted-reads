@@ -11,6 +11,6 @@ Optional arguments:
 | ------- | ------- |
 |--reference \<Filename> | Reference fasta file [default = searches the bam file for a bwameth command]|
 |--bam \<Input file> | File must end in .bam or .sam [default = stdin]|
-|--out \<Output name> | Name of the output bam file [default = stdout]|
+|--out \<Output name> | Name of the output sam file [default = stdout]|
 |--c_count \<int> |Minimum number of nonconverted Cs on a read to consider it nonconverted [default = 3]|
 |--flag_reads |Set the 'Failing platform / vendor quality check' flag [default = don't set it]|
