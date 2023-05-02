@@ -227,7 +227,7 @@ def run_filter():
     if args.reference:
         reference = args.reference
     else:
-        reference = find_reference(mysam.header.to_dict())
+        reference = find_reference(mysam.header)
             
     fasta_dict = parse_fasta(reference)
 
