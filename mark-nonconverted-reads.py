@@ -101,7 +101,7 @@ def parse_bam(bam_file, fasta_dict, out, args):
         # Ignore eeads not part of a proper pair
         if not read.is_proper_pair or read.is_qcfail or read.is_duplicate or read.is_secondary \
         or read.is_supplementary:
-            out.write(read)
+            continue
         
         elif (read.is_reverse and read.is_read2) or (read.mate_is_reverse and read.is_read1): # 'Top' strand
             # If there are 3 or more non-CpG Cs in the read, call filter_snps
