@@ -92,8 +92,13 @@ def parse_bam(bam_file, fasta_dict, out, args):
         nonconverted_dict[chrom] = 0
         
     for read in bam_file:
-    
-        # Ignore reads not part of a proper pair
+
+        if read.reference_id == -1:
+            continue
+
+        chromosome = bam_file.getrname(read.reference_id)
+
+        # Ignore eeads not part of a proper pair
         if not read.is_proper_pair or read.is_qcfail or read.is_duplicate or read.is_secondary \
         or read.is_supplementary:
             out.write(read)
@@ -101,14 +106,15 @@ def parse_bam(bam_file, fasta_dict, out, args):
         elif (read.is_reverse and read.is_read2) or (read.mate_is_reverse and read.is_read1): # 'Top' strand
             # If there are 3 or more non-CpG Cs in the read, call filter_snps
             if read.query_alignment_sequence.count("C") - read.query_alignment_sequence.count("CG") >= args.c_count:
-                nonconverted_dict[read.reference_name] += filter_snps(read, fasta_dict[read.reference_name], out, args)
+                nonconverted_dict[chromosome] += filter_snps(read, fasta_dict[chromosome], out, args)
             else:
                 out.write(read)
         
         elif (read.is_reverse and read.is_read1) or (read.mate_is_reverse and read.is_read2): # 'Bottom' strand
             # If there are 3 or more non-CpG Gs in the read, call filter_snps
+
             if read.query_alignment_sequence.count("G") - read.query_alignment_sequence.count("CG") >= args.c_count:
-                nonconverted_dict[read.reference_name] += filter_snps(read, fasta_dict[read.reference_name], out, args)
+                nonconverted_dict[chromosome] += filter_snps(read, fasta_dict[chromosome], out, args)
             else:
                 out.write(read)
 
@@ -227,15 +233,15 @@ def run_filter():
     if args.reference:
         reference = args.reference
     else:
-        reference = find_reference(mysam.header.to_dict())
+        reference = find_reference(mysam.header) 
             
     fasta_dict = parse_fasta(reference)
 
     # If an output bam is specified, write there, otherwise write to stdout
     if args.out:
-        out = pysam.AlignmentFile(args.out, "w", template = mysam)
+        out = pysam.AlignmentFile(args.out, "wh", template = mysam)
     else:
-        out = pysam.AlignmentFile("-", "w", template = mysam)
+        out = pysam.AlignmentFile("-", "wh", template = mysam)
     
     nonconverted_counts = parse_bam(mysam, fasta_dict, out, args)
 
