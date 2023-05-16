@@ -93,15 +93,16 @@ def parse_bam(bam_file, fasta_dict, out, args):
         
     for read in bam_file:
 
+		# reference_id==-1 is UNmapped => there is no reference name
         if read.reference_id == -1:
             continue
-
+		
         chromosome = bam_file.getrname(read.reference_id)
 
-        # Ignore eeads not part of a proper pair
+        # Only check reads with good alignments ELSE just write in output bam WITHOUT process
         if not read.is_proper_pair or read.is_qcfail or read.is_duplicate or read.is_secondary \
         or read.is_supplementary:
-            continue
+            out.write(read)
         
         elif (read.is_reverse and read.is_read2) or (read.mate_is_reverse and read.is_read1): # 'Top' strand
             # If there are 3 or more non-CpG Cs in the read, call filter_snps
